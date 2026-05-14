@@ -49,7 +49,7 @@ export default function UserPage() {
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
           Sistem Antrian Digital
         </div>
-        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">Antriku</h1>
+        <img src="/logo.jpeg" alt="Antriku" className="h-16 md:h-20 mx-auto mb-2 object-contain" />
         <p className="text-slate-500 mt-2 text-base">Ambil tiket Anda dan pantau antrean secara langsung</p>
       </div>
 
@@ -109,9 +109,12 @@ export default function UserPage() {
         </p>
       )}
 
-      <p className="text-slate-300 text-xs mt-10">
-        © {new Date().getFullYear()} Antriku · Sistem Antrian Digital
-      </p>
+      <div className="text-center mt-10">
+        <img src="/logo.jpeg" alt="Antriku" className="h-5 mx-auto mb-2 opacity-40 grayscale hover:grayscale-0 transition-all object-contain" />
+        <p className="text-slate-300 text-xs">
+          © {new Date().getFullYear()} Sistem Antrian Digital
+        </p>
+      </div>
     </main>
   );
 }
