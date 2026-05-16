@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Antriku — Sistem Antrian Digital
 
-## Getting Started
+A real-time digital queue management system built with **Next.js**, **Firebase Realtime Database**, and **Tailwind CSS**.
 
-First, run the development server:
+---
+
+## ✨ Features
+
+- 🎫 **User Page** — Visitors take a ticket and track their queue position in real time.
+- 🖥️ **Display Page** — Public screen showing the currently-served number with animations and **automatic voice announcements** (Text-to-Speech, Indonesian).
+- 🔐 **Admin Dashboard** — Secure login for operators to advance, rewind, or reset the queue.
+- 🔔 **Live sync** — All pages reflect queue changes instantly via Firebase `onValue` listeners.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | [Next.js 16](https://nextjs.org/) (App Router) |
+| Language | JavaScript / TypeScript |
+| Styling | [Tailwind CSS v4](https://tailwindcss.com/) |
+| Backend / DB | [Firebase Realtime Database](https://firebase.google.com/products/realtime-database) |
+| Auth | Firebase Authentication (email & password) |
+| TTS | Web Speech API (`SpeechSynthesisUtterance`) |
+
+---
+
+## 📁 Project Structure
+
+```
+antriku/
+├── app/
+│   ├── page.js          # User page — take a ticket & track position
+│   ├── display/
+│   │   └── page.js      # Public display screen with TTS announcements
+│   ├── admin/
+│   │   └── page.js      # Admin dashboard (login-protected)
+│   ├── layout.tsx
+│   └── globals.css
+├── lib/
+│   └── firebase.js      # Firebase app initialization (db, auth)
+└── public/
+    └── logo.jpeg
+```
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone & install
+
+```bash
+git clone <repo-url>
+cd antriku
+npm install
+```
+
+### 2. Configure Firebase
+
+The Firebase config is already embedded in `lib/firebase.js`. If you fork this project, replace the config object with your own credentials from the Firebase console.
+
+### 3. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Route | Description |
+|---|---|
+| `/` | User page — take a ticket |
+| `/display` | Public queue display screen |
+| `/admin` | Admin dashboard (requires login) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🔊 Voice Announcements (TTS)
 
-To learn more about Next.js, take a look at the following resources:
+The Display page uses the native **Web Speech API** to announce each new queue number in Indonesian:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> *"Nomor antrian 5, silakan menuju loket."*
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Any ongoing speech is cancelled before playing the new announcement, preventing audio lag when the admin presses **Next** rapidly.
+- A **Mute/Unmute** button and a status indicator dot are shown in the top-right corner of the display.
+- The TTS button is hidden automatically on browsers that don't support the Web Speech API.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🔐 Admin Controls
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Log in at `/admin` with your Firebase Auth credentials to access:
+
+| Button | Action |
+|---|---|
+| **Next** | Advance the queue by 1 (disabled when all tickets are served) |
+| **Back** | Rewind the queue by 1 (disabled at 0) |
+| **Reset** | Reset both `current` and `total` to 0 |
+
+---
+
+## 🏗️ Firebase Database Structure
+
+```json
+{
+  "queue": {
+    "current": 3,
+    "total": 10
+  }
+}
+```
+
+---
+
+## 📦 Scripts
+
+```bash
+npm run dev    # Start development server
+npm run build  # Build for production
+npm run start  # Run production build
+npm run lint   # Run ESLint
+```
+
+---
+
+## 📄 License
+
+MIT © Antriku
