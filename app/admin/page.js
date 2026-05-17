@@ -11,6 +11,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [current, setCurrent] = useState(null);
   const [total, setTotal] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -137,13 +138,47 @@ export default function AdminPage() {
                 </div>
               )}
 
+              {/* Checkbox persetujuan */}
+              <label className="flex items-start gap-3 cursor-pointer group select-none">
+                <div className="relative mt-0.5 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                      agreed
+                        ? 'bg-indigo-600 border-indigo-600'
+                        : 'bg-white border-slate-300 group-hover:border-indigo-400'
+                    }`}
+                  >
+                    {agreed && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <span className="text-sm text-slate-600 leading-snug">
+                  Saya menyetujui penggunaan data sesuai kebijakan dan perlindungan data pribadi
+                </span>
+              </label>
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !agreed}
                 className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-all duration-200 shadow-lg shadow-indigo-500/20"
               >
-                {loading ? 'Masuk...' : 'Masuk'}
+                {loading ? 'Masuk...' : 'Login'}
               </button>
+
+              {/* Identitas Kelompok */}
+              <div className="pt-2 text-center space-y-1">
+                <p className="text-sm text-slate-500 font-medium">Capstone Project Kelompok B</p>
+                <p className="text-sm text-slate-400">Kelas 66 | 2026</p>
+              </div>
             </form>
           </div>
         </div>

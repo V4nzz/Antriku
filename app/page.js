@@ -169,7 +169,7 @@ function drawTicketPNG(ticketNumber, dateTimeStr) {
   drawY += 10 * S;
   ctx.font      = fontB;
   ctx.fillStyle = '#d1d5db';
-  ctx.fillText('— antriku.app —', cx, drawY);
+  ctx.fillText('— antriku.vercel.app —', cx, drawY);
 
   return canvas;
 }
@@ -264,7 +264,7 @@ function TicketCard({ ticketNumber, dateTimeStr }) {
         Simpan tiket ini sebagai bukti.<br />
         Tunjukkan kepada petugas saat dipanggil.
       </p>
-      <p style={s.footerBrand}>— antriku.app —</p>
+      <p style={s.footerBrand}>— antriku.vercel.app —</p>
     </div>
   );
 }
