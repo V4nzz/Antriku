@@ -6,85 +6,109 @@ import { ref, set, get, onValue } from 'firebase/database';
 import { db, auth } from '@/lib/firebase';
 
 export default function AdminPage() {
-  const [user, setUser] = useState(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [agreed, setAgreed] = useState(false);
-  const [current, setCurrent] = useState(null);
-  const [total, setTotal] = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
+  // --- React States (Penyimpan Status Halaman) ---
+  const [user, setUser]         = useState(null);          // Menyimpan objek data user Firebase Auth yang sedang masuk
+  const [email, setEmail]       = useState('');            // Input teks Email admin
+  const [password, setPassword] = useState('');            // Input teks Password admin
+  const [error, setError]       = useState('');            // Teks pesan error jika login gagal
+  const [loading, setLoading]   = useState(false);         // Status loading tombol login
+  const [agreed, setAgreed]     = useState(false);         // Status persetujuan checkbox kebijakan data pribadi
+  const [current, setCurrent]   = useState(null);          // Nomor antrean yang sedang dilayani saat ini (dari Firebase)
+  const [total, setTotal]       = useState(null);          // Total tiket antrean yang terdaftar saat ini (dari Firebase)
+  const [actionLoading, setActionLoading] = useState(false); // Status loading tombol aksi panel admin (Next, Back, Reset)
 
-  // ─── Real-time listener (active only while logged in) ─────────────────────
+  // ─── Real-time listener (Aktif hanya saat Operator sudah Login) ──────────────
+  // Digunakan untuk mendengarkan perubahan data antrean di database secara real-time.
   const unsubscribeRef = useRef(null);
 
   useEffect(() => {
+    // Jika admin belum berhasil masuk (login), jangan daftarkan listener database
     if (!user) return;
+    
     const queueRef = ref(db, 'queue');
+    
+    // onValue mengembalikan fungsi pembatal listener. Kami simpan di unsubscribeRef agar bisa dibersihkan kapan saja.
     unsubscribeRef.current = onValue(queueRef, (snap) => {
       const data = snap.exists() ? snap.val() : { current: 0, total: 0 };
       setCurrent(data.current ?? 0);
       setTotal(data.total ?? 0);
     });
+
+    // Cleanup: Membersihkan listener jika komponen admin ditutup atau dilepas
     return () => {
       if (unsubscribeRef.current) unsubscribeRef.current();
     };
   }, [user]);
 
-  // ─── Auth ──────────────────────────────────────────────────────────────────
+  // ─── Auth (Sistem Otentikasi Masuk & Keluar) ──────────────────────────────────
+  
+  // Fungsi untuk menangani submit form login admin
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      // Masuk menggunakan layanan email dan password bawaan Firebase Auth
       const credential = await signInWithEmailAndPassword(auth, email, password);
-      setUser(credential.user);
+      setUser(credential.user); // Simpan data user ke state lokal
     } catch (err) {
-      setError('Email atau password salah. Silakan coba lagi.');
+      setError('Email atau password salah. Silakan coba lagi.'); // Tangani jika kredensial salah
     } finally {
       setLoading(false);
     }
   };
 
+  // Fungsi untuk menangani proses keluar (logout) admin
   const handleLogout = async () => {
-    if (unsubscribeRef.current) unsubscribeRef.current();
-    await signOut(auth);
+    if (unsubscribeRef.current) unsubscribeRef.current(); // Cabut listener database secara paksa
+    await signOut(auth); // Panggil fungsi Firebase Auth untuk menghapus sesi login
     setUser(null);
     setCurrent(null);
     setTotal(null);
   };
 
+  // ─── Real-time Queue Actions (Operasi Mutasi Database Antrean) ────────────────
+
+  // Fungsi untuk memanggil antrean berikutnya (Next)
   const handleNext = async () => {
     setActionLoading(true);
     const snap = await get(ref(db, 'queue'));
     const data = snap.exists() ? snap.val() : { current: 0, total: 0 };
-    // Guard: jangan next jika sudah melebihi total
+    
+    // Guard (Proteksi): Jangan biarkan memanggil jika nomor saat ini sudah mencapai total tiket yang ada
     if ((data.current ?? 0) >= (data.total ?? 0)) {
       setActionLoading(false);
       return;
     }
+    
+    // Increment nomor antrean
     const next = (data.current ?? 0) + 1;
     await set(ref(db, 'queue'), { current: next, total: data.total ?? 0 });
     setActionLoading(false);
   };
 
+  // Fungsi untuk memundurkan panggilan antrean (Back)
   const handleBack = async () => {
     setActionLoading(true);
     const snap = await get(ref(db, 'queue'));
     const data = snap.exists() ? snap.val() : { current: 0, total: 0 };
-    // Guard: jangan back jika sudah di 0
+    
+    // Guard (Proteksi): Jangan biarkan memundurkan jika nomor saat ini sudah di angka 0
     if ((data.current ?? 0) <= 0) {
       setActionLoading(false);
       return;
     }
+    
+    // Decrement nomor antrean
     const prev = (data.current ?? 0) - 1;
     await set(ref(db, 'queue'), { current: prev, total: data.total ?? 0 });
     setActionLoading(false);
   };
 
+  // Fungsi untuk mereset seluruh antrean (Reset)
   const handleReset = async () => {
     setActionLoading(true);
+    // Kembalikan nilai `current` dan `total` ke angka 0 di database Firebase
     await set(ref(db, 'queue'), { current: 0, total: 0 });
     setCurrent(0);
     setTotal(0);
@@ -138,15 +162,17 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Checkbox persetujuan */}
+              {/* Checkbox persetujuan kebijakan data pribadi (wajib diisi/dicentang) */}
               <label className="flex items-start gap-3 cursor-pointer group select-none">
                 <div className="relative mt-0.5 flex-shrink-0">
+                  {/* Sembunyikan checkbox bawaan browser untuk membuat kustomisasi style yang lebih estetis */}
                   <input
                     type="checkbox"
                     checked={agreed}
                     onChange={(e) => setAgreed(e.target.checked)}
                     className="sr-only"
                   />
+                  {/* Kotak checkbox kustom dengan transisi warna halus */}
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
                       agreed
@@ -154,6 +180,7 @@ export default function AdminPage() {
                         : 'bg-white border-slate-300 group-hover:border-indigo-400'
                     }`}
                   >
+                    {/* Tanda centang SVG yang hanya muncul saat agreed bernilai true */}
                     {agreed && (
                       <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -166,6 +193,7 @@ export default function AdminPage() {
                 </span>
               </label>
 
+              {/* Tombol submit login (otomatis disabled jika loading atau persetujuan checkbox belum dicentang) */}
               <button
                 type="submit"
                 disabled={loading || !agreed}
@@ -174,7 +202,7 @@ export default function AdminPage() {
                 {loading ? 'Masuk...' : 'Login'}
               </button>
 
-              {/* Identitas Kelompok */}
+              {/* Teks Identitas Kelompok pengembang di bawah tombol Login */}
               <div className="pt-2 text-center space-y-1">
                 <p className="text-sm text-slate-500 font-medium">Capstone Project Kelompok B</p>
                 <p className="text-sm text-slate-400">Kelas 66 | 2026</p>

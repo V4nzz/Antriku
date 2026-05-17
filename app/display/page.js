@@ -5,71 +5,84 @@ import { ref, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
 
 export default function DisplayPage() {
-  const [currentServing, setCurrentServing] = useState(null);
-  const [animating, setAnimating]           = useState(false);
-  const [isMuted, setIsMuted]               = useState(false);
-  const [audioReady, setAudioReady]         = useState(false);
+  // --- React States (Penyimpan Status Halaman) ---
+  const [currentServing, setCurrentServing] = useState(null); // Nomor antrean yang sedang dilayani saat ini
+  const [animating, setAnimating]           = useState(false); // Status apakah nomor antrean sedang dalam proses animasi pop
+  const [isMuted, setIsMuted]               = useState(false); // Menyimpan status apakah suara Text-to-Speech dimatikan/diaktifkan
+  const [audioReady, setAudioReady]         = useState(false); // Status kesiapan browser untuk mendukung Web Speech API (Text-to-Speech)
 
-  const prevValueRef  = useRef(null);
-  const isMutedRef    = useRef(false); // shadow ref so the Firebase callback always reads the latest value
-  const isInitialLoad = useRef(true);
+  // --- React Refs (Penyimpan Nilai Referensi Persisten Tanpa Re-render) ---
+  const prevValueRef  = useRef(null);   // Menyimpan nilai antrean sebelumnya untuk mendeteksi perubahan
+  const isMutedRef    = useRef(false);  // Shadow ref agar callback Firebase selalu membaca nilai terbaru dari `isMuted` tanpa membuat ulang listener
+  const isInitialLoad = useRef(true);   // Penunjuk apakah halaman baru pertama kali dimuat (mencegah suara berbunyi otomatis saat loading awal)
 
-  // Keep isMutedRef in sync with state
+  // Menyinkronkan shadow ref `isMutedRef` setiap kali state `isMuted` berubah
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
-  // Detect Web Speech API availability on mount
+  // Mendeteksi ketersediaan Web Speech API di browser klien pada saat komponen pertama kali dimuat
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       setAudioReady(true);
     }
   }, []);
 
-  // Firebase listener + TTS trigger
+  // ─── Firebase Listener & Pemicu Suara Pengumuman (TTS) ───────────────────
+  // Hook useEffect ini berfungsi sebagai pusat kontrol suara dan tampilan layar display.
+  // Ia mendengarkan perubahan data real-time pada "queue/current" di Firebase.
   useEffect(() => {
     const queueRef = ref(db, 'queue/current');
 
     const unsubscribe = onValue(queueRef, (snap) => {
       const value = snap.exists() ? snap.val() : 0;
 
-      // Skip if nothing changed
+      // Proteksi: Jika nomor antrean tidak berubah, abaikan dan jangan lakukan apa-apa
       if (prevValueRef.current === value) return;
 
-      // Trigger animation only on real updates (not initial load)
+      // Jika bukan pemuatan awal halaman (panggilan antrean baru dipicu oleh admin)
       if (!isInitialLoad.current) {
+        // 1. Jalankan animasi Pop & Gelombang Lingkaran pada Angka Antrean
         setAnimating(true);
         const timer = setTimeout(() => setAnimating(false), 700);
         prevValueRef._animTimer = timer;
 
-        // Voice announcement
+        // 2. Logika Pemanggilan Suara Text-to-Speech (TTS)
+        // Syarat: nomor valid (>0), suara tidak dimute, dan browser mendukung Web Speech API
         if (value && value !== 0 && !isMutedRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          window.speechSynthesis.cancel(); // stop any ongoing speech
+          window.speechSynthesis.cancel(); // Hentikan suara yang sedang berbicara sebelumnya agar tidak saling tumpang tindih
+          
+          // Membuat instruksi ucapan teks baru dalam Bahasa Indonesia
           const utterance = new SpeechSynthesisUtterance(
             `Nomor antrian ${value}, silakan menuju loket.`
           );
-          utterance.lang  = 'id-ID';
-          utterance.rate  = 0.95;
-          utterance.pitch = 1;
+          utterance.lang  = 'id-ID';  // Mengatur bahasa ucapan ke Bahasa Indonesia
+          utterance.rate  = 0.95;     // Kecepatan berbicara sedikit diperlambat agar jelas terdengar (default 1.0)
+          utterance.pitch = 1;        // Nada suara standar
+          
+          // Panggil browser untuk mengucapkan teks tersebut
           window.speechSynthesis.speak(utterance);
         }
       }
 
+      // Perbarui referensi nilai sebelumnya dan matikan penunjuk pemuatan awal
       prevValueRef.current = value;
       isInitialLoad.current = false;
       setCurrentServing(value);
     });
 
+    // Pembersihan listener dan pemrosesan suara ketika komponen display tidak digunakan lagi (unmount)
     return () => {
       unsubscribe();
       if (prevValueRef._animTimer) clearTimeout(prevValueRef._animTimer);
-      // Stop any lingering speech on unmount
+      // Hentikan sisa suara yang masih berbicara agar tidak mengganggu navigasi halaman lain
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
 
+  // Fungsi toggle untuk menyalakan/mematikan suara pengumuman
   const toggleMute = () => setIsMuted((prev) => !prev);
 
   return (

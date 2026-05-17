@@ -4,8 +4,12 @@ import { useState, useEffect } from 'react';
 import { ref, set, get, onValue } from 'firebase/database';
 import { db } from '@/lib/firebase';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers (Fungsi Pembantu) ──────────────────────────────────────────────────
 
+/**
+ * Memformat objek Date JavaScript menjadi teks string tanggal dengan format Indonesia.
+ * Contoh output: "17 Mei 2026 - 09:20 WIB"
+ */
 function formatTicketDate(date) {
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -19,15 +23,16 @@ function formatTicketDate(date) {
   return `${d} ${m} ${y} - ${hh}:${mm} WIB`;
 }
 
-// ─── Canvas ticket renderer ──────────────────────────────────────────────────
-// Draws the ticket to an off-screen <canvas> using the 2D API.
-// This is 100% deterministic — no CSS involved, pixel-perfect output.
+// ─── Canvas ticket renderer (Mesin Penggambar Tiket) ───────────────────────────
+// Fungsi ini menggambar struk tiket antrean secara dinamis pada elemen <canvas> tersembunyi (off-screen).
+// Menggunakan HTML5 Canvas 2D API untuk menjamin hasil cetak (download) 100% konsisten, tajam (high-res),
+// dan bebas dari isu inkonsistensi rendering CSS/font antar browser (pixel-perfect output).
 
 function drawTicketPNG(ticketNumber, dateTimeStr) {
-  const W = 840;  // 280px × 3 (retina)
-  const S = 3;    // scale factor
+  const W = 840;  // Lebar canvas: 280px × 3 (faktor skala Retina agar gambar sangat tajam saat dicetak)
+  const S = 3;    // Faktor skala (scale factor) untuk rendering resolusi tinggi
 
-  // All measurements are in "design px" then multiplied by S
+  // Mendefinisikan ukuran font dengan memperhitungkan faktor skala (S)
   const pad   = 20 * S;
   const fontM = `bold ${11 * S}px "Courier New", Courier, monospace`;
   const fontS = `${8.5 * S}px "Courier New", Courier, monospace`;
@@ -36,70 +41,71 @@ function drawTicketPNG(ticketNumber, dateTimeStr) {
   const fontF = `italic ${8.5 * S}px "Courier New", Courier, monospace`;
   const fontB = `${7.5 * S}px "Courier New", Courier, monospace`;
 
-  // Pre-calculate height by walking through the layout
-  let y = 24 * S; // top padding
+  // Kalkulasi dinamis tinggi Canvas (H) dengan menelusuri alur tata letak dari atas ke bawah
+  let y = 24 * S; // Jarak padding atas struk
 
-  // brand (11px) + 2px gap
+  // Tambah tinggi teks brand utama (11px) + jarak celah (gap) 2px
   const brandH  = 11 * S;
   y += brandH + 2 * S;
 
-  // brandSub (8.5px) + 16px gap
+  // Tambah tinggi sub-brand (8.5px) + jarak celah 16px
   const subH = 8.5 * S;
   y += subH + 16 * S;
 
-  // dividerTight: line + 4px
+  // Tambah tinggi garis pemisah putus-putus pertama (4px)
   y += 4 * S;
 
-  // label (8.5px) + 2px gap
+  // Tambah tinggi label "Nomor Antrian Anda" (8.5px) + jarak celah 2px
   y += 8.5 * S + 2 * S;
 
-  // number (80px) + 2px top pad + 12px bottom pad
+  // Tambah tinggi nomor antrean utama (80px) + padding atas 2px + padding bawah 12px
   const numTop = y + 2 * S;
   y += 80 * S + 2 * S + 12 * S;
 
-  // divider: line + 16px
+  // Tambah tinggi garis pemisah putus-putus kedua (16px)
   y += 16 * S;
 
-  // datetime (10px) + 16px gap
+  // Tambah tinggi teks tanggal & waktu (10px) + jarak celah 16px
   const dtY = y;
   y += 10 * S + 16 * S;
 
-  // divider: line + 16px
+  // Tambah tinggi garis pemisah putus-putus ketiga (16px)
   y += 16 * S;
 
-  // footnote: 2 lines × 8.5px × 1.6 lineHeight
+  // Tambah tinggi catatan kaki (2 baris teks × tinggi 8.5px × spasi baris 1.6)
   const fnY = y;
   const fnLH = 8.5 * 1.6 * S;
   y += fnLH * 2;
 
-  // brand footer (7.5px) + 10px top margin
+  // Tambah tinggi watermark/footer brand (7.5px) + margin atas 10px
   y += 10 * S;
   const fbY = y;
   y += 7.5 * S;
 
-  // bottom padding
+  // Tambah jarak padding bawah struk
   y += 24 * S;
 
-  const H = Math.ceil(y);
+  const H = Math.ceil(y); // Membulatkan hasil kalkulasi tinggi total Canvas ke atas
 
-  // Create canvas
+  // Membuat elemen Canvas di memori (tidak langsung dirender ke layar)
   const canvas = document.createElement('canvas');
   canvas.width  = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  // Background
+  // Mengisi latar belakang struk dengan warna putih bersih
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
 
-  // -- Draw helper --
-  const cx = W / 2; // center x
+  // Titik tengah horizontal Canvas untuk meratakan teks ke tengah (alignment center)
+  const cx = W / 2;
 
+  // Fungsi pembantu untuk menggambar garis putus-putus horizontal khas kertas thermal struk kasir
   function dashedLine(atY) {
     ctx.save();
     ctx.strokeStyle = '#d1d5db';
     ctx.lineWidth   = 1.5 * S;
-    ctx.setLineDash([4 * S, 3 * S]);
+    ctx.setLineDash([4 * S, 3 * S]); // Pola: 4px garis terisi, 3px kosong
     ctx.beginPath();
     ctx.moveTo(pad, atY);
     ctx.lineTo(W - pad, atY);
@@ -107,10 +113,10 @@ function drawTicketPNG(ticketNumber, dateTimeStr) {
     ctx.restore();
   }
 
-  // -- Layout pass (draw from top) --
+  // ─── Mulai Proses Penggambaran Struk ───
   let drawY = 24 * S;
 
-  // ★ ANTRIKU ★
+  // 1. Menggambar Brand Utama: ★ ANTRIKU ★
   ctx.font      = fontM;
   ctx.fillStyle = '#4f46e5';
   ctx.textAlign = 'center';
@@ -118,54 +124,54 @@ function drawTicketPNG(ticketNumber, dateTimeStr) {
   ctx.fillText('★  A N T R I K U  ★', cx, drawY);
   drawY += brandH + 2 * S;
 
-  // SISTEM ANTRIAN DIGITAL
+  // 2. Menggambar Sub-Brand: SISTEM ANTRIAN DIGITAL
   ctx.font      = fontS;
   ctx.fillStyle = '#9ca3af';
   ctx.fillText('S I S T E M   A N T R I A N   D I G I T A L', cx, drawY);
   drawY += subH + 16 * S;
 
-  // Divider (tight)
+  // 3. Menggambar Garis Pembatas Atas
   dashedLine(drawY);
   drawY += 4 * S;
 
-  // NOMOR ANTRIAN ANDA
+  // 4. Menggambar Teks Petunjuk: NOMOR ANTRIAN ANDA
   ctx.font      = fontS;
   ctx.fillStyle = '#9ca3af';
   ctx.fillText('N O M O R   A N T R I A N   A N D A', cx, drawY);
   drawY += 8.5 * S + 2 * S;
 
-  // Queue number
-  drawY += 2 * S; // paddingTop
+  // 5. Menggambar Angka Nomor Antrean (Ukuran Raksasa & Tebal)
+  drawY += 2 * S; // Jarak atas teks angka
   ctx.font      = fontN;
   ctx.fillStyle = '#4f46e5';
   ctx.fillText(String(ticketNumber), cx, drawY);
-  drawY += 80 * S + 12 * S; // number height + paddingBottom
+  drawY += 80 * S + 12 * S; // Update koordinat Y berdasarkan tinggi angka + padding bawah
 
-  // Divider
+  // 6. Menggambar Garis Pembatas Tengah
   dashedLine(drawY);
   drawY += 16 * S;
 
-  // Date & time
+  // 7. Menggambar Teks Waktu Pengambilan Tiket
   ctx.font      = fontD;
   ctx.fillStyle = '#6b7280';
   ctx.fillText(dateTimeStr, cx, drawY);
   drawY += 10 * S + 16 * S;
 
-  // Divider
+  // 8. Menggambar Garis Pembatas Bawah
   dashedLine(drawY);
   drawY += 16 * S;
 
-  // Footnote line 1
+  // 9. Menggambar Catatan Kaki Baris 1
   ctx.font      = fontF;
   ctx.fillStyle = '#9ca3af';
   ctx.fillText('Simpan tiket ini sebagai bukti.', cx, drawY);
   drawY += fnLH;
 
-  // Footnote line 2
+  // 10. Menggambar Catatan Kaki Baris 2
   ctx.fillText('Tunjukkan kepada petugas saat dipanggil.', cx, drawY);
   drawY += fnLH;
 
-  // Brand footer
+  // 11. Menggambar Alamat Web Sistem (Watermark)
   drawY += 10 * S;
   ctx.font      = fontB;
   ctx.fillStyle = '#d1d5db';
@@ -174,8 +180,9 @@ function drawTicketPNG(ticketNumber, dateTimeStr) {
   return canvas;
 }
 
-// ─── Ticket Preview Card (visual only — for the modal) ───────────────────────
-// Uses ONLY inline styles so it matches the Canvas-drawn version.
+// ─── Ticket Preview Card (Komponen Kartu Visual Pratinjau Struk di Modal) ──────
+// Komponen React murni untuk menampilkan pratinjau struk thermal di layar.
+// Menggunakan inline styles untuk mencocokkan tampilan visual secara akurat dengan struk hasil cetak Canvas.
 
 function TicketCard({ ticketNumber, dateTimeStr }) {
   const s = {
@@ -269,63 +276,90 @@ function TicketCard({ ticketNumber, dateTimeStr }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Component (Halaman Utama Sisi Pengguna) ─────────────────────────────
 
 export default function UserPage() {
-  const [currentServing, setCurrentServing] = useState(null);
-  const [myTicket, setMyTicket]             = useState(null);
-  const [ticketDateTime, setTicketDateTime] = useState('');
-  const [loading, setLoading]               = useState(false);
-  const [downloading, setDownloading]       = useState(false);
-  const [showModal, setShowModal]           = useState(false);
+  // --- React States (Penyimpan Status Halaman) ---
+  const [currentServing, setCurrentServing] = useState(null); // Nomor antrean yang sedang dilayani saat ini
+  const [myTicket, setMyTicket]             = useState(null); // Nomor antrean milik pengguna (jika sudah mengambil tiket)
+  const [ticketDateTime, setTicketDateTime] = useState('');   // Menyimpan waktu pengambilan tiket milik pengguna
+  const [loading, setLoading]               = useState(false); // Status loading saat proses pembuatan tiket di Firebase
+  const [downloading, setDownloading]       = useState(false); // Status loading saat konversi struk canvas & download PNG
+  const [showModal, setShowModal]           = useState(false); // Kontrol buka/tutup Modal pratinjau struk tiket
 
-  // ─── Real-time listener ─────────────────────────────────────────────────
+  // ─── Real-time listener (Pendengar Data Real-time dari Firebase) ─────────────────
+  // Hook useEffect ini berjalan saat komponen pertama kali dipasang (mounted).
+  // Ia memantau secara real-time perubahan pada path "queue/current" di Firebase Realtime Database.
   useEffect(() => {
     const queueRef = ref(db, 'queue/current');
+    
+    // Fungsi onValue mendaftarkan callback yang akan dipanggil secara otomatis setiap kali data di Firebase berubah
     const unsubscribe = onValue(queueRef, (snap) => {
+      // Jika data ada, pasang ke state, jika tidak ada fallback ke 0
       setCurrentServing(snap.exists() ? snap.val() : 0);
     });
+
+    // Membersihkan listener database saat pengguna meninggalkan halaman (unmount) demi menghindari kebocoran memori
     return () => unsubscribe();
   }, []);
 
-  // ─── Get ticket ─────────────────────────────────────────────────────────
+  // ─── Get ticket (Proses Pengambilan Tiket Baru) ─────────────────────────
+  // Fungsi ini dipanggil ketika tombol "Ambil Tiket" ditekan oleh pengguna.
   const handleGetTicket = async () => {
+    // Jika pengguna sudah memiliki tiket, langsung buka kembali modal struk tiketnya
     if (myTicket !== null) {
       setShowModal(true);
       return;
     }
     setLoading(true);
     try {
+      // 1. Ambil data antrean saat ini dari Firebase
       const snap = await get(ref(db, 'queue'));
       const data = snap.exists() ? snap.val() : { current: 0, total: 0 };
+      
+      // 2. Increment total tiket dengan menambahkan 1
       const newTotal = (data.total ?? 0) + 1;
+      
+      // 3. Simpan kembali data terbaru ke Firebase Database
       await set(ref(db, 'queue'), {
         current: data.current ?? 0,
         total: newTotal,
       });
+
+      // 4. Catat waktu pengambilan tiket & set nomor tiket pengguna di state lokal
       setTicketDateTime(formatTicketDate(new Date()));
       setMyTicket(newTotal);
+
+      // 5. Tampilkan modal pop-up pratinjau struk tiket secara otomatis
       setShowModal(true);
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Download ticket as PNG (Canvas 2D — no html2canvas) ────────────────
+  // ─── Download ticket sebagai PNG (Menggunakan Mesin Canvas 2D) ────────────────
+  // Fungsi untuk mengekspor gambar tiket PNG resolusi tinggi secara murni di sisi client.
   const handleDownload = () => {
     setDownloading(true);
     try {
+      // 1. Gambar struk secara dinamis ke canvas off-screen
       const canvas = drawTicketPNG(myTicket, ticketDateTime);
+      
+      // 2. Buat tautan jangkar (anchor link) palsu untuk menginisiasi pengunduhan browser
       const link = document.createElement('a');
       link.download = `Ticket-${myTicket}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      link.href = canvas.toDataURL('image/png'); // Konversi canvas menjadi DataURL base64 format PNG
+      link.click(); // Trigger klik otomatis untuk memulai download file
     } finally {
       setDownloading(false);
     }
   };
 
+  // --- Logika Status Antrean ---
+  // Menentukan apakah nomor tiket pengguna saat ini sedang dipanggil oleh admin
   const isBeingServed = myTicket !== null && myTicket === currentServing;
+  
+  // Menghitung berapa banyak sisa antrean yang harus ditunggu sebelum giliran pengguna tiba
   const waitCount =
     myTicket !== null && currentServing !== null
       ? Math.max(0, myTicket - currentServing)
@@ -334,7 +368,7 @@ export default function UserPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 p-6">
 
-      {/* ─── Title ─────────────────────────────────────────────────────── */}
+      {/* ─── Header & Judul Halaman ─── */}
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-semibold uppercase tracking-wider mb-4">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
@@ -344,7 +378,7 @@ export default function UserPage() {
         <p className="text-slate-500 mt-2 text-base">Ambil tiket Anda dan pantau antrean secara langsung</p>
       </div>
 
-      {/* ─── Currently serving card ─────────────────────────────────────── */}
+      {/* ─── Kartu Pemantau Antrean yang Sedang Dilayani (Real-time) ─── */}
       <div className="w-full max-w-sm mb-6">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-lg shadow-slate-100/60 p-6 text-center">
           <p className="text-slate-500 text-sm font-medium mb-1">Sedang Dilayani</p>
@@ -358,7 +392,7 @@ export default function UserPage() {
         </div>
       </div>
 
-      {/* ─── My ticket status card ──────────────────────────────────────── */}
+      {/* ─── Kartu Status Tiket Milik Pengguna (Muncul Setelah Mengambil Tiket) ─── */}
       {myTicket !== null && (
         <div className={`w-full max-w-sm mb-6 rounded-2xl border p-5 text-center transition-all ${
           isBeingServed
@@ -382,7 +416,7 @@ export default function UserPage() {
               )}
             </>
           )}
-          {/* Re-open preview */}
+          {/* Tombol pintasan untuk membuka kembali modal struk tiket */}
           <button
             onClick={() => setShowModal(true)}
             className="mt-4 text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2 transition-colors"
@@ -392,7 +426,7 @@ export default function UserPage() {
         </div>
       )}
 
-      {/* ─── Get ticket / waiting ───────────────────────────────────────── */}
+      {/* ─── Tombol Interaktif Pengambilan Tiket / Label Keterangan ─── */}
       {myTicket === null ? (
         <button
           onClick={handleGetTicket}
@@ -405,22 +439,22 @@ export default function UserPage() {
         <p className="text-slate-400 text-sm">Harap tunggu nomor Anda dipanggil.</p>
       )}
 
-      {/* ─── Footer ─────────────────────────────────────────────────────── */}
+      {/* ─── Footer Halaman ─── */}
       <div className="text-center mt-10">
         <img src="/logo.jpeg" alt="Antriku" className="h-5 mx-auto mb-2 opacity-40 grayscale hover:grayscale-0 transition-all object-contain" />
         <p className="text-slate-300 text-xs">© {new Date().getFullYear()} Sistem Antrian Digital</p>
       </div>
 
-      {/* ─── Ticket Preview Modal ─────────────────────────────────────────── */}
+      {/* ─── Modal Pop-up Pratinjau & Download Struk Tiket ─── */}
       {showModal && myTicket !== null && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }} // Tutup modal jika klik di luar area struk
         >
           <div className="w-full max-w-xs animate-[fadeInUp_0.25s_ease-out]">
 
-            {/* Modal header */}
+            {/* Header Modal */}
             <div className="flex items-center justify-between mb-3 px-1">
               <p className="text-white font-semibold text-sm tracking-wide">🎟️ Tiket Anda</p>
               <button
@@ -432,7 +466,7 @@ export default function UserPage() {
               </button>
             </div>
 
-            {/* The visual preview card */}
+            {/* Kartu Pratinjau Visual Struk */}
             <div className="shadow-2xl shadow-black/30 rounded-2xl ring-1 ring-white/10 overflow-hidden">
               <TicketCard
                 ticketNumber={myTicket}
@@ -440,7 +474,7 @@ export default function UserPage() {
               />
             </div>
 
-            {/* Download button */}
+            {/* Tombol Unduh Struk Tiket sebagai Gambar PNG */}
             <button
               onClick={handleDownload}
               disabled={downloading}
@@ -465,7 +499,7 @@ export default function UserPage() {
         </div>
       )}
 
-      {/* ─── Keyframe for modal entrance ─────────────────────────────────── */}
+      {/* ─── Animasi CSS Transisi Modal Masuk ─── */}
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }
